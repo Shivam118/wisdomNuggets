@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import db from "./firebase";
 
+const { Search } = Input;
 const { Header, Content, Footer } = Layout;
 
 const RatingsBar = ["⭐", "⭐ ⭐", "⭐ ⭐ ⭐", "⭐ ⭐ ⭐ ⭐", "⭐ ⭐ ⭐ ⭐ ⭐"];
@@ -125,6 +126,7 @@ const App = () => {
   const [modalState, setModalState] = useState("login");
   const [productsList, setProductsList] = useState([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [searchText, setSearchText] = useState("");
   const [user, setUser] = useState({
     username: "",
     password: "",
@@ -167,10 +169,8 @@ const App = () => {
 
   const handleSubmit = async () => {
     try {
-      const adminRef = collection(db, "admin");
-      const productRef = doc(db, "Products", product.id);
-
       if (modalState === "login") {
+        const adminRef = collection(db, "admin");
         const adminSnap = await getDocs(adminRef);
         if (adminSnap.size !== 1) {
           return openNotification("Server Error - Contact Developer");
@@ -188,6 +188,8 @@ const App = () => {
         }
       }
       if (modalState === "product") {
+        const productRef = doc(db, "Products", product.id);
+        const adminRef = doc(db, "admin", "SmN8MRlrq36PXTo1U6cU");
         await setDoc(productRef, {
           name: product.name,
           costPrice: product.costPrice,
@@ -204,11 +206,14 @@ const App = () => {
         return openNotification("Product Added Successfully");
       }
     } catch (err) {
+      console.log(err);
       return openNotification(err.message);
     } finally {
       setModalOpen(false);
     }
   };
+
+  const onSearch = (value, _e, info) => setSearchText(value);
 
   const getProducts = async () => {
     const productsRef = collection(db, "Products");
@@ -235,7 +240,7 @@ const App = () => {
       setIsLoggedIn(true);
       setProduct((prev) => ({
         ...prev,
-        id: parseInt(admin.productCounter) + 1,
+        id: (parseInt(admin.productCounter) + 1).toString(),
       }));
     }
   };
@@ -245,6 +250,31 @@ const App = () => {
     getProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (searchText === "") {
+      getProducts();
+    } else {
+      (async function () {
+        const productsRef = collection(db, "Products");
+        const productsSnap = await getDocs(productsRef);
+        if (productsSnap.size === 0) {
+          return openNotification("No Products Found");
+        }
+        const products = productsSnap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        const filteredProducts = products.filter(
+          (item) =>
+            item.name.toLowerCase().includes(searchText.toLowerCase()) ||
+            item.id.toString().includes(searchText)
+        );
+        setProductsList(filteredProducts);
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchText]);
 
   return (
     <Layout>
@@ -265,6 +295,11 @@ const App = () => {
           wrap="wrap"
         >
           <h2 style={{ color: "white" }}>Wisdom Nuggets</h2>
+          <Search
+            placeholder="Input Id or Name"
+            onSearch={onSearch}
+            style={{ width: 200 }}
+          />
           {!isLoggedIn ? (
             <span>
               <Button
