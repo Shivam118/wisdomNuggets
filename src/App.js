@@ -9,7 +9,13 @@ import {
   notification,
 } from "antd";
 import { InfoCircleOutlined, UserOutlined } from "@ant-design/icons";
-import { collection, doc, setDoc, getDocs } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  updateDoc,
+} from "firebase/firestore";
 import db from "./firebase";
 
 const { Header, Content, Footer } = Layout;
@@ -53,6 +59,16 @@ const ProductCards = ({
             alt={name}
             style={{ width: "100%", objectFit: "contain", height: "100%" }}
           />
+          <span
+            style={{
+              fontSize: "20px",
+              position: "absolute",
+              top: "0px",
+              left: "0px",
+            }}
+          >
+            #{id}
+          </span>
           <div style={hover ? hoverStyle : { display: "none" }}>
             View Product
           </div>
@@ -151,8 +167,10 @@ const App = () => {
 
   const handleSubmit = async () => {
     try {
+      const adminRef = collection(db, "admin");
+      const productRef = doc(db, "Products", product.id);
+
       if (modalState === "login") {
-        const adminRef = collection(db, "admin");
         const adminSnap = await getDocs(adminRef);
         if (adminSnap.size !== 1) {
           return openNotification("Server Error - Contact Developer");
@@ -170,7 +188,6 @@ const App = () => {
         }
       }
       if (modalState === "product") {
-        const productRef = doc(db, "Products", product.id);
         await setDoc(productRef, {
           name: product.name,
           costPrice: product.costPrice,
@@ -179,6 +196,9 @@ const App = () => {
           ratings: product.ratings,
           reviews: product.reviews,
           link: product.link,
+        });
+        await updateDoc(adminRef, {
+          productCounter: product.id,
         });
         getProducts();
         return openNotification("Product Added Successfully");
@@ -196,7 +216,10 @@ const App = () => {
     if (productsSnap.size === 0) {
       return openNotification("No Products Found");
     }
-    const products = productsSnap.docs.map((doc) => doc.data());
+    const products = productsSnap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
     setProductsList(products);
   };
 
@@ -210,6 +233,10 @@ const App = () => {
     const token = localStorage.getItem("token");
     if (admin.token === token) {
       setIsLoggedIn(true);
+      setProduct((prev) => ({
+        ...prev,
+        id: parseInt(admin.productCounter) + 1,
+      }));
     }
   };
 
@@ -222,12 +249,20 @@ const App = () => {
   return (
     <Layout>
       {contextHolder}
-      <Header style={{ display: "flex", alignItems: "center", width: "100vw" }}>
+      <Header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          width: "100vw",
+          height: "auto",
+        }}
+      >
         <Flex
-          gap="middle"
+          // gap="middle"
           justify={"space-between"}
           align={"center"}
           style={{ width: "100%" }}
+          wrap="wrap"
         >
           <h2 style={{ color: "white" }}>Wisdom Nuggets</h2>
           {!isLoggedIn ? (
@@ -309,7 +344,7 @@ const App = () => {
             <Input
               name="id"
               value={product.id}
-              onChange={handleProductField}
+              disabled={true}
               placeholder="Enter Product ID"
             />
             <br />
@@ -385,7 +420,7 @@ const App = () => {
       <Content style={{ padding: "0 48px" }}>
         <div style={{ background: "#fff", padding: 24, minHeight: 280 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "15px" }}>
-            {productsList.map((item, index) => (
+            {productsList.map((item) => (
               <ProductCards
                 key={item.id}
                 id={item.id}
